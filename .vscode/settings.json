@@ -1,0 +1,18 @@
+{
+    "files.associations": {
+        "*.cjson": "jsonc",
+        "*.wxss": "css",
+        "*.wxs": "javascript",
+        "iostream": "cpp",
+        "ostream": "cpp",
+        "iosfwd": "cpp",
+        "compare": "cpp",
+        "cstdint": "cpp",
+        "*.tcc": "cpp",
+        "istream": "cpp",
+        "locale": "cpp",
+        "string": "cpp",
+        "stdexcept": "cpp"
+    },
+    "C_Cpp.errorSquiggles": "disabled"
+}
