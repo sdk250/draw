@@ -191,7 +191,7 @@ int main(int argc, char **argv)
         check = ImGui::Button("Check");
         if (check)
             libUE4 = driver->getModuleBase("libunity.so");
-        ImGui::Text("Base address: %x", libUE4);
+        ImGui::Text("Base address: %#x", libUE4);
 
         _shutdown = ImGui::Button("close");
         ImGui::End();
