@@ -183,7 +183,7 @@ class c_driver
             T res;
             if (this->read(addr, &res, sizeof(T)))
                 return res;
-            return {};
+            return 666;
         }
 
         template <typename T>

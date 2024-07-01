@@ -31,7 +31,11 @@ int main(int argc, char **argv)
     if (argc < 2)
         return 2;
 
-    ANativeWindow *native_window = nullptr;
+    // Android native window
+    ANativeWindow *native_window {nullptr};
+    struct android::ANativeWindowCreator::DisplayInfo dInfo {0};
+
+    // Initialize EGL
     EGLDisplay eDisplay = EGL_NO_DISPLAY;
     EGLSurface eSurface = EGL_NO_SURFACE;
     EGLContext eContext = EGL_NO_CONTEXT;
@@ -48,16 +52,26 @@ int main(int argc, char **argv)
         EGL_NONE
     }, num_config = 0, eFormat = 0;
     EGLConfig eConfig = nullptr;
+
     // ImGuiIO& io = ImGui::GetIO();
     // static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+    // Demo window and shutdown comfirm
     bool show_demo_window = true, _shutdown = false;
+
+    // Scan touch device
     int ndev = -1;
     struct dirent **namelist {nullptr};
     char input_device[30] {0};
-    std::thread *pth {nullptr}, *d_info {nullptr};
     struct input_event touch_event;
-    struct android::ANativeWindowCreator::DisplayInfo dInfo {0};
-    c_driver *driver = new c_driver(strdup(argv[1]), get_pid("com.ztgame.bob.mi")); // com.tencent.tmgp.pubgmhd
+
+    // Thread pointer
+    std::thread *pth {nullptr}, *d_info {nullptr}, *game_data {nullptr};
+
+    // Driver
+    c_driver *driver = new c_driver(strdup(argv[1]), get_pid("com.tencent.tmgp.pubgmhd" /*"com.ztgame.bob.mi"*/)); // com.tencent.tmgp.pubgmhd
+
+    // Game data
     uint32_t libUE4 = 0;
 
     d_info = new std::thread {[&] {
@@ -175,6 +189,14 @@ int main(int argc, char **argv)
     }};
     pth->detach();
     bool check = false;
+    uint32_t value {0};
+    uint32_t offset {0};
+
+    uint32_t UWorld = 0, ULevel = 0;
+    game_data = new std::thread {[&]{
+        driver->read(libUE4 + 0xE9985C8, UWorld, sizeof(UWorld));
+        driver->read(UWorld + 0x90, ULevel, sizeof(ULevel));
+    }};
 
     for (; !_shutdown; )
     {
@@ -190,8 +212,12 @@ int main(int argc, char **argv)
 
         check = ImGui::Button("Check");
         if (check)
+        {
             libUE4 = driver->getModuleBase("libunity.so");
-        ImGui::Text("Base address: %#x", libUE4);
+            value = driver->read<uint32_t>(libUE4 + offset);
+            offset += 8;
+        }
+        ImGui::Text("Base address: %#X\nValue: %lu\n", libUE4, value);
 
         _shutdown = ImGui::Button("close");
         ImGui::End();
@@ -208,6 +234,7 @@ int main(int argc, char **argv)
     delete pth;
     delete d_info;
     delete driver;
+    delete game_data;
     close(fd);
     ImGui_ImplAndroid_Shutdown();
     ImGui_ImplOpenGL3_Shutdown();
