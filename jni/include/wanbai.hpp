@@ -36,10 +36,10 @@
 class c_driver
 {
     private:
-        int has_upper = 0;
-        int has_lower = 0;
-        int has_symbol = 0;
-        int has_digit = 0;
+        // int has_upper = 0;
+        // int has_lower = 0;
+        // int has_symbol = 0;
+        // int has_digit = 0;
         int fd;
         pid_t pid;
         char *dev_path {nullptr};
@@ -122,11 +122,12 @@ class c_driver
                 return 0;
             } else
                 printf("Can not find the driver!\n");
+            unlink(dev_path);
             return -1;
         }
 
     public:
-        c_driver(char *_dev_path, pid_t _pid) : dev_path(_dev_path), pid(_pid)
+        c_driver(char *_dev_path, pid_t _pid) : pid(_pid), dev_path(_dev_path)
         {
             open_driver();
             if (fd <= 0 or pid <= 10) {
@@ -157,10 +158,7 @@ class c_driver
             cm.buffer = buffer;
             cm.size = size;
 
-            if (ioctl(fd, OP_READ_MEM, &cm) != 0) {
-                return false;
-            }
-            return true;
+            return ioctl(fd, OP_READ_MEM, &cm) == 0 ? true : false;
         }
 
         bool write(uintptr_t addr, void* buffer, size_t size)
@@ -171,19 +169,14 @@ class c_driver
             cm.buffer = buffer;
             cm.size = size;
 
-            if (ioctl(fd, OP_WRITE_MEM, &cm) != 0) {
-                return false;
-            }
-            return true;
+            return ioctl(fd, OP_WRITE_MEM, &cm) == 0 ? true : false;
         }
 
         template <typename T>
         T read(uintptr_t addr)
         {
             T res;
-            if (this->read(addr, &res, sizeof(T)))
-                return res;
-            return 666;
+            return this->read(addr, &res, sizeof(T)) ? res : 0;
         }
 
         template <typename T>
