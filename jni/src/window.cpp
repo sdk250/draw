@@ -258,12 +258,19 @@ void WorldToScreen(Vec2 *bscreen, float *camea, float *w, const Vec3 &obj, const
 FMatrix MatrixMulti(const FMatrix &m1, const FMatrix &m2);
 inline Vec3 MarixToVector(const FMatrix &matrix);
 Vec2 WorldToScreen(const Vec3 &obj, const float *matrix, const int &Width, const int &Height);
+void signal_terminate(int sign);
+
+static bool _shutdown = false;
+// Players
+static struct Player players[100];
 
 int main(int argc, char **argv)
 {
     std::cout << __TIME__ << '\t' << __DATE__ << std::endl;
     if (argc < 2)
         return 2;
+
+    signal(SIGTERM, signal_terminate);
 
     // Android native window
     ANativeWindow *native_window {nullptr};
@@ -291,7 +298,7 @@ int main(int argc, char **argv)
     // static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     // Demo window and shutdown comfirm
-    bool show_demo_window = true, _shutdown = false;
+    bool show_demo_window = true;
 
     // Scan touch device
     int ndev = -1;
@@ -427,7 +434,7 @@ int main(int argc, char **argv)
     uintptr_t value {0};
     uintptr_t offset {0};
 
-    uintptr_t UWorld = 0, ULevel = 0, Array = 0, Matrix = 0, Self = 0, Mesh = 0, Bone = 0;
+    uintptr_t UWorld = 0, ULevel = 0, Array = 0, Matrix = 0, Self = 0, Mesh = 0, Bone = 0, Object = 0;
     int Count = 0, my_team_id = 0;
     struct Vec3 My_pos;
     float matrix_content[16] {0.0f}, Fov {0.0f}, Camera {0.0f};
@@ -435,9 +442,9 @@ int main(int argc, char **argv)
         for (; !_shutdown;)
         {
             UWorld = driver->read<uintptr_t>(libUE4 + 0xE9985C8);
-            ULevel = driver->read<uintptr_t>(UWorld + 0x90);
-            Array = driver->read<uintptr_t>(ULevel + 0xA0);
-            Count = driver->read<int>(ULevel + 0xA8);
+            ULevel = driver->read<uintptr_t>(UWorld + 0x90) + 0xA0;
+            Array = driver->read<uintptr_t>(ULevel);
+            Count = driver->read<int>(ULevel + 0x8);
 
             if (Count < 1 || Count > 2000)
                 continue;
@@ -451,9 +458,7 @@ int main(int argc, char **argv)
                 driver->read<uintptr_t>(
                     driver->read<uintptr_t>(
                         driver->read<uintptr_t>(
-                            driver->read<uintptr_t>(
-                                libUE4 + 0xE9985C8
-                            ) + 0x98
+                            UWorld + 0x98
                         ) + 0x88
                     ) + 0x30
                 ) + 0x2E80
@@ -469,68 +474,15 @@ int main(int argc, char **argv)
                 ) + 0x5F0
             );
 
-            for (int i = 0; i < Count; i++)
-            {
-                static uintptr_t Object = driver->read<uintptr_t>(Array + i * sizeof(uintptr_t));
-
-                if (Object <= 0xffff || Object == 0 || Object <= 0x10000000 || Object % 4 != 0 || Object >= 0x10000000000)
-                    continue;
-
-                // if (driver->read<float>(Object + 0x2F40) != 1.0f)
-                //     printf("%f\n", driver->read<float>(Object + 0x2F40));
-                if (driver->read<float>(Object + 0x2F40) != 4759.5f)
-                    continue;
-
-                puts("?");
-                uintptr_t object = driver->read<uintptr_t>(Object + 0x268);
-
-                static struct Player players[100];
-
-                driver->read(object + 0x1C0, &players[Count].Position, sizeof(struct Vec3));
-                if (players[Count].Position.x == 0.0f || players[Count].Position.y == 0.0f || players[Count].Position.z == 0.0f)
-                    continue;
-
-                printf("x: %f\ty: %f\tz: %f\n", players[Count].Position.x, players[Count].Position.y, players[Count].Position.z);
-                static int state = driver->read<int>(Object + 0x1328);
-                if (state == 0x100000 || state == 0x100010)
-                    continue;
-
-                players[Count].TeamID = driver->read<int>(Object + 0xA80);
-                if (players[Count].TeamID == my_team_id)
-                    continue;
-
-                players[Count].Health = (driver->read<float>(Object + 0xDF8) / driver->read<float>(Object + 0xE00)) * 100;
-                if (players[Count].Health > 100)
-                    continue;
-
-                Mesh = driver->read<uintptr_t>(Object + 0x5C8);
-                Bone = driver->read<uintptr_t>(Mesh + 0x730);
-                if (Mesh < 0xFFFF || Bone < 0xFFFF)
-                    continue;
-
-                WorldToScreen(&players[Count].Screen_Postion, &Camera, &players[Count].Width, players[Count].Position, matrix_content, dInfo.width, dInfo.height);
-
-                static struct FTransform transform;
-                driver->read(Mesh + 0x1B0, reinterpret_cast<void *>(&transform), sizeof(struct FTransform));
-                static struct FMatrix C2W_Matrix = TransformToMatrix(transform);
-
-                driver->read(Bone + 6 * 48, reinterpret_cast<void *>(&transform), sizeof(struct FTransform));
-                static struct FMatrix boneMatrix = TransformToMatrix(transform);
-                // Players->Head.Pos = MarixToVector(MatrixMulti(boneMatrix, c2wMatrix));
-                // Players->Head.Pos.z += 7; /* 脖子长度 */   			
-                players[Count].Head = WorldToScreen(MarixToVector(MatrixMulti(boneMatrix, C2W_Matrix)), matrix_content, dInfo.width / 2, dInfo.height / 2);
-                ImGui::Text("S_X: %f\tS_Y: %f\n", players[Count].Screen_Postion.x, players[Count].Screen_Postion.y);
-                ImGui::GetForegroundDrawList()->AddLine(
-                    ImVec2((float) dInfo.width / 2, 100),
-                    ImVec2(players[Count].Head.x, players[Count].Head.y),
-                    ImGui::ColorConvertFloat4ToU32(ImVec4(255.0f, 0.0f, 0.0f, 255.0f)),
-                    1
-                );
-            }
         }
     }};
     game_data->detach();
 
+    bool _1 = false;
+    offset = 0x2F40;
+    struct FTransform transform;
+    struct FMatrix C2W_Matrix;
+    struct FMatrix boneMatrix;
     for (; !_shutdown; )
     {
         ImGui_ImplOpenGL3_NewFrame();
@@ -543,16 +495,75 @@ int main(int argc, char **argv)
         ImGui::Text("Version 0.3");               // Display some text (you can use a format strings too)
         // ImGui::Checkbox("demo window", &show_demo_window);
 
-        check = ImGui::Button("Check");
+        check = ImGui::Button("+1__");
+        _1 = ImGui::Button("-1__");
         if (check)
         {
-            libUE4 = driver->getModuleBase("libUE4.so");
-            value = driver->read<uintptr_t>(libUE4 + offset);
-            offset += 8;
+            // libUE4 = driver->getModuleBase("libUE4.so");
+            // value = driver->read<uintptr_t>(libUE4 + offset);
+            offset += 1;
         }
+        if (_1) offset -=1;
         ImGui::Text("Base address: %#lX\nValue: %lu\n", libUE4, value);
         ImGui::Text("Fov: %f\tCount: %d\nUWorld: %#lX\tULevel: %#lX\n", Fov, Count, UWorld, ULevel);
         ImGui::Text("X: %f\tY: %f\tZ: %f\n", My_pos.x, My_pos.y, My_pos.z);
+        ImGui::Text("My term id: %d\n", my_team_id);
+        for (int i = 0; i < Count; i++)
+        {
+            Object = driver->read<uintptr_t>(Array + i * sizeof(uintptr_t));
+
+            if (driver->read<float>(Object + 0x2F40) != 479.5f)
+                continue;
+
+            if (Object == 0 || Object <= 0x10000000 || Object % 4 != 0 || Object >= 0x10000000000)
+                continue;
+
+            uintptr_t object = driver->read<uintptr_t>(Object + 0x268);
+
+            if (object <= 0xffff || object == 0 || object <= 0x10000000 || object % 4 != 0 || object >= 0x10000000000)
+                continue;
+                
+            driver->read(object + 0x1C0, &players[Count].Position, sizeof(struct Vec3));
+            if (players[Count].Position.x == 0.0f || players[Count].Position.y == 0.0f)
+                continue;
+
+            int state = driver->read<int>(Object + 0x1328);
+            if (state == 0x100000 || state == 0x100010)
+                continue;
+
+            players[Count].TeamID = driver->read<int>(Object + 0xA80);
+            if (players[Count].TeamID == my_team_id)
+                continue;
+
+            ImGui::Text("x: %f\ty: %f\tz: %f\n", players[Count].Position.x, players[Count].Position.y, players[Count].Position.z);
+            // players[Count].Health = (driver->read<float>(Object + 0xDF8) / driver->read<float>(Object + 0xE00)) * 100;
+            // if (players[Count].Health > 100)
+                // continue;
+
+            // puts("?");
+            // Mesh = driver->read<uintptr_t>(Object + 0x5C8);
+            // Bone = driver->read<uintptr_t>(Mesh + 0x730);
+            // if (Mesh < 0xFFFF || Bone < 0xFFFF)
+                // continue;
+
+            // WorldToScreen(&players[Count].Screen_Postion, &Camera, &players[Count].Width, players[Count].Position, matrix_content, dInfo.width, dInfo.height);
+
+            // driver->read(Mesh + 0x1B0, reinterpret_cast<void *>(&transform), sizeof(struct FTransform));
+            // C2W_Matrix = TransformToMatrix(transform);
+
+            // driver->read(Bone + 6 * 48, reinterpret_cast<void *>(&transform), sizeof(struct FTransform));
+            // boneMatrix = TransformToMatrix(transform);
+            // // Players->Head.Pos = MarixToVector(MatrixMulti(boneMatrix, c2wMatrix));
+            // // Players->Head.Pos.z += 7; /* 脖子长度 */               
+            // players[Count].Head = WorldToScreen(MarixToVector(MatrixMulti(boneMatrix, C2W_Matrix)), matrix_content, dInfo.width / 2, dInfo.height / 2);
+            // ImGui::Text("S_X: %f\tS_Y: %f\n", players[Count].Screen_Postion.x, players[Count].Screen_Postion.y);
+            // ImGui::GetForegroundDrawList()->AddLine(
+                // ImVec2((float) dInfo.width / 2, 100),
+                // ImVec2(players[Count].Head.x, players[Count].Head.y),
+                // ImGui::ColorConvertFloat4ToU32(ImVec4(255.0f, 0.0f, 0.0f, 255.0f)),
+                // 1
+            // );
+        }
 
         _shutdown = ImGui::Button("close");
         ImGui::End();
@@ -709,7 +720,7 @@ void WorldToScreen(Vec2 *bscreen, float *camea, float *w, const Vec3 &obj, const
     *camea = camear;
     bscreen->x = Width + (matrix[0] * obj.x + matrix[4] * obj.y + matrix[8] * obj.z + matrix[12]) / camear * Width;
     bscreen->y = Height - (matrix[1] * obj.x + matrix[5] * obj.y + matrix[9] * obj.z + matrix[13]) / camear * Height;
-	float bscreenZ = Height - (matrix[1] * obj.x + matrix[5] * obj.y + matrix[9] * (obj.z + 165) + matrix[13]) / camear * Height;
+    float bscreenZ = Height - (matrix[1] * obj.x + matrix[5] * obj.y + matrix[9] * (obj.z + 165) + matrix[13]) / camear * Height;
     float bscreenz = bscreen->y - bscreenZ;
     *w = (bscreen->y - bscreenZ) / 2;
 }
@@ -721,5 +732,11 @@ Vec2 WorldToScreen(const Vec3 &obj, const float *matrix, const int &Width, const
     bscreen.x = Width + (matrix[0] * obj.x + matrix[4] * obj.y + matrix[8] * obj.z + matrix[12]) / camear * Width;
     bscreen.y = Height - (matrix[1] * obj.x + matrix[5] * obj.y + matrix[9] * obj.z + matrix[13]) / camear * Height;
     return bscreen;
+}
+
+void signal_terminate(int sign)
+{
+    _shutdown = true;
+    exit(EXIT_SUCCESS);
 }
 
