@@ -438,51 +438,21 @@ int main(int argc, char **argv)
     int Count = 0, my_team_id = 0;
     struct Vec3 My_pos;
     float matrix_content[16] {0.0f}, Fov {0.0f}, Camera {0.0f};
+    struct FTransform transform;
+    struct FMatrix C2W_Matrix;
+    struct FMatrix boneMatrix;
+    ImDrawList *drawList = ImGui::GetForegroundDrawList();
+
     game_data = new std::thread {[&]{
-        for (; !_shutdown;)
-        {
-            UWorld = driver->read<uintptr_t>(libUE4 + 0xE9985C8);
-            ULevel = driver->read<uintptr_t>(UWorld + 0x90) + 0xA0;
-            Array = driver->read<uintptr_t>(ULevel);
-            Count = driver->read<int>(ULevel + 0x8);
+        // for (; !_shutdown;)
+        // {
 
-            if (Count < 1 || Count > 2000)
-                continue;
-
-            Matrix = driver->read<uintptr_t>(
-                driver->read<uintptr_t>(
-                    libUE4 + 0xE968E88
-                ) + 0x20
-            ) + 0x270;
-            Self = driver->read<uintptr_t>(
-                driver->read<uintptr_t>(
-                    driver->read<uintptr_t>(
-                        driver->read<uintptr_t>(
-                            UWorld + 0x98
-                        ) + 0x88
-                    ) + 0x30
-                ) + 0x2E80
-            );
-            my_team_id = driver->read<int>(Self + 0xA80);
-            driver->read(driver->read<uintptr_t>(Self + 0x268) + 0x1C0, &My_pos, sizeof(struct Vec3));
-            driver->read(Matrix, &matrix_content, sizeof(matrix_content));
-            Fov = driver->read<float>(
-                driver->read<uintptr_t>(
-                    driver->read<uintptr_t>(
-                        Self + 0x4A70
-                    ) + 0x5D0
-                ) + 0x5F0
-            );
-
-        }
+        // }
     }};
     game_data->detach();
 
     bool _1 = false;
     offset = 0x2F40;
-    struct FTransform transform;
-    struct FMatrix C2W_Matrix;
-    struct FMatrix boneMatrix;
     for (; !_shutdown; )
     {
         ImGui_ImplOpenGL3_NewFrame();
@@ -505,9 +475,43 @@ int main(int argc, char **argv)
         }
         if (_1) offset -=1;
         ImGui::Text("Base address: %#lX\nValue: %lu\n", libUE4, value);
-        ImGui::Text("Fov: %f\tCount: %d\nUWorld: %#lX\tULevel: %#lX\n", Fov, Count, UWorld, ULevel);
-        ImGui::Text("X: %f\tY: %f\tZ: %f\n", My_pos.x, My_pos.y, My_pos.z);
+        ImGui::Text("Fov: %.2f\tCount: %d\nUWorld: %#lX\tULevel: %#lX\n", Fov, Count, UWorld, ULevel);
+        ImGui::Text("X: %.2f\tY: %.2f\tZ: %.2f\n", My_pos.x, My_pos.y, My_pos.z);
         ImGui::Text("My term id: %d\n", my_team_id);
+        // drawList = ImGui::GetForegroundDrawList();
+        UWorld = driver->read<uintptr_t>(libUE4 + 0xE9985C8);
+        ULevel = driver->read<uintptr_t>(UWorld + 0x90) + 0xA0;
+        Array = driver->read<uintptr_t>(ULevel);
+        Count = driver->read<int>(ULevel + 0x8);
+
+        if (Count < 1 || Count > 2000)
+            goto end;
+
+        Matrix = driver->read<uintptr_t>(
+            driver->read<uintptr_t>(
+                libUE4 + 0xE968E88
+            ) + 0x20
+        ) + 0x270;
+        Self = driver->read<uintptr_t>(
+            driver->read<uintptr_t>(
+                driver->read<uintptr_t>(
+                    driver->read<uintptr_t>(
+                        UWorld + 0x98
+                    ) + 0x88
+                ) + 0x30
+            ) + 0x2E80
+        );
+        my_team_id = driver->read<int>(Self + 0xA80);
+        driver->read(driver->read<uintptr_t>(Self + 0x268) + 0x1C0, &My_pos, sizeof(struct Vec3));
+        driver->read(Matrix, &matrix_content, sizeof(matrix_content));
+        Fov = driver->read<float>(
+            driver->read<uintptr_t>(
+                driver->read<uintptr_t>(
+                    Self + 0x4A70
+                ) + 0x5D0
+            ) + 0x5F0
+        );
+
         for (int i = 0; i < Count; i++)
         {
             Object = driver->read<uintptr_t>(Array + i * sizeof(uintptr_t));
@@ -523,48 +527,48 @@ int main(int argc, char **argv)
             if (object <= 0xffff || object == 0 || object <= 0x10000000 || object % 4 != 0 || object >= 0x10000000000)
                 continue;
                 
-            driver->read(object + 0x1C0, &players[Count].Position, sizeof(struct Vec3));
-            if (players[Count].Position.x == 0.0f || players[Count].Position.y == 0.0f)
+            driver->read(object + 0x1C0, &players[i].Position, sizeof(struct Vec3));
+            if (players[i].Position.x == 0.0f || players[i].Position.y == 0.0f)
                 continue;
 
             int state = driver->read<int>(Object + 0x1328);
             if (state == 0x100000 || state == 0x100010)
                 continue;
 
-            players[Count].TeamID = driver->read<int>(Object + 0xA80);
-            if (players[Count].TeamID == my_team_id)
+            players[i].TeamID = driver->read<int>(Object + 0xA80);
+            if (players[i].TeamID == my_team_id)
                 continue;
 
-            ImGui::Text("x: %f\ty: %f\tz: %f\n", players[Count].Position.x, players[Count].Position.y, players[Count].Position.z);
-            // players[Count].Health = (driver->read<float>(Object + 0xDF8) / driver->read<float>(Object + 0xE00)) * 100;
-            // if (players[Count].Health > 100)
-                // continue;
+            players[i].Health = (driver->read<float>(Object + 0xDF8) / driver->read<float>(Object + 0xE00)) * 100;
+            if (players[i].Health > 100)
+                continue;
 
-            // puts("?");
-            // Mesh = driver->read<uintptr_t>(Object + 0x5C8);
-            // Bone = driver->read<uintptr_t>(Mesh + 0x730);
-            // if (Mesh < 0xFFFF || Bone < 0xFFFF)
-                // continue;
+            Mesh = driver->read<uintptr_t>(Object + 0x5C8);
+            Bone = driver->read<uintptr_t>(Mesh + 0x730);
+            if (Mesh < 0xFFFF || Bone < 0xFFFF)
+                continue;
 
-            // WorldToScreen(&players[Count].Screen_Postion, &Camera, &players[Count].Width, players[Count].Position, matrix_content, dInfo.width, dInfo.height);
+            WorldToScreen(&players[i].Screen_Postion, &Camera, &players[i].Width, players[i].Position, matrix_content, dInfo.width, dInfo.height);
 
-            // driver->read(Mesh + 0x1B0, reinterpret_cast<void *>(&transform), sizeof(struct FTransform));
-            // C2W_Matrix = TransformToMatrix(transform);
+            driver->read(Mesh + 0x1B0, reinterpret_cast<void *>(&transform), sizeof(struct FTransform));
+            C2W_Matrix = TransformToMatrix(transform);
 
-            // driver->read(Bone + 6 * 48, reinterpret_cast<void *>(&transform), sizeof(struct FTransform));
-            // boneMatrix = TransformToMatrix(transform);
-            // // Players->Head.Pos = MarixToVector(MatrixMulti(boneMatrix, c2wMatrix));
-            // // Players->Head.Pos.z += 7; /* 脖子长度 */               
-            // players[Count].Head = WorldToScreen(MarixToVector(MatrixMulti(boneMatrix, C2W_Matrix)), matrix_content, dInfo.width / 2, dInfo.height / 2);
-            // ImGui::Text("S_X: %f\tS_Y: %f\n", players[Count].Screen_Postion.x, players[Count].Screen_Postion.y);
-            // ImGui::GetForegroundDrawList()->AddLine(
-                // ImVec2((float) dInfo.width / 2, 100),
-                // ImVec2(players[Count].Head.x, players[Count].Head.y),
-                // ImGui::ColorConvertFloat4ToU32(ImVec4(255.0f, 0.0f, 0.0f, 255.0f)),
-                // 1
-            // );
+            driver->read(Bone + 6 * 48, reinterpret_cast<void *>(&transform), sizeof(struct FTransform));
+            boneMatrix = TransformToMatrix(transform);
+            // Players->Head.Pos = MarixToVector(MatrixMulti(boneMatrix, c2wMatrix));
+            // Players->Head.Pos.z += 7; /* 脖子长度 */               
+            players[i].Head = WorldToScreen(MarixToVector(MatrixMulti(boneMatrix, C2W_Matrix)), matrix_content, dInfo.width / 2, dInfo.height / 2);
+            if (players[i].Head.x > 0 && players[i].Head.y > 0 && players[i].Width > 0 && players[i].Head.x < dInfo.width && players[i].Head.y < dInfo.height)
+                ImGui::GetForegroundDrawList()->AddLine(
+                    ImVec2((float) dInfo.width / 2, 100),
+                    ImVec2(players[i].Head.x, players[i].Head.y),
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(255.0f, 0.0f, 0.0f, 255.0f)),
+                    1
+                );
+            // ImGui::Text("x: %f\ty: %f\tz: %f\tHP: %f\n", players[i].Position.x, players[i].Position.y, players[i].Position.z, players[i].Health);
         }
 
+end:
         _shutdown = ImGui::Button("close");
         ImGui::End();
 
