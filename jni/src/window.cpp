@@ -114,6 +114,10 @@ struct Vec2 {
         y /= v.y;
         return *this;
     }
+    operator ImVec2() const
+    {
+        return ImVec2(this->x, this->y);
+    }
 };
 
 struct Vec3
@@ -217,15 +221,31 @@ struct Vec3
 
 struct Player
 {
-    float Health;
-    struct Vec3 Position;
-    struct Vec2 Screen_Postion;
-    struct Vec2 Head;
-    int TeamID;
-    bool Bot;
-    float Distance;
-    float Camera;
-    float Width;
+    float Health {0};
+    struct {
+        struct Vec3 Position {0, 0, 0};
+        struct Vec2 Screen_Position {0, 0};
+    } Position,
+        Head,
+        Chest,
+        Pelvis,
+        lSh,
+        rSh,
+        lElbow,
+        rElbow,
+        lWrist,
+        rWrist,
+        lLeg,
+        rLeg,
+        lKnee,
+        rKnee,
+        lAnkle,
+        rAnkle;
+    int TeamID {0};
+    bool Bot {false};
+    float Distance {0};
+    float Camera {0};
+    float Width {0};
 };
 
 struct FMatrix
@@ -253,16 +273,22 @@ struct FTransform
 int get_input_device(const struct dirent *dir);
 const char* exec(const char* command);
 pid_t get_pid(const char* package);
-struct FMatrix TransformToMatrix(const FTransform &transform);
-void WorldToScreen(Vec2 *bscreen, float *camea, float *w, const Vec3 &obj, const float *matrix, int &, int&);
-FMatrix MatrixMulti(const FMatrix &m1, const FMatrix &m2);
-inline Vec3 MarixToVector(const FMatrix &matrix);
-Vec2 WorldToScreen(const Vec3 &obj, const float *matrix, const int &Width, const int &Height);
+struct FMatrix TransformToMatrix(const FTransform transform);
+void WorldToScreen(Vec2 *bscreen, float *camea, float *w, const Vec3 obj, const float *matrix, int , int );
+FMatrix MatrixMulti(const FMatrix m1, const FMatrix m2);
+inline Vec3 MarixToVector(const FMatrix matrix);
+Vec2 WorldToScreen(const Vec3 obj, const float *matrix, const int Width, const int Height);
 void signal_terminate(int sign);
+inline struct FTransform getBone(uintptr_t addr, c_driver *driver);
 
 static bool _shutdown = false;
 // Players
-static struct Player players[100];
+static struct Player players[200];
+const uint32_t RED = ImGui::ColorConvertFloat4ToU32(ImVec4(255.0f, 0.0f, 0.0f, 255.0f));
+const uint32_t GREEN = ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 255.0f, 0.0f, 255.0f));
+const uint32_t BLUE = ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 255.0f, 255.0f));
+struct android::ANativeWindowCreator::DisplayInfo dInfo {0};
+const float line_width = 1.5f;
 
 int main(int argc, char **argv)
 {
@@ -274,7 +300,6 @@ int main(int argc, char **argv)
 
     // Android native window
     ANativeWindow *native_window {nullptr};
-    struct android::ANativeWindowCreator::DisplayInfo dInfo {0};
 
     // Initialize EGL
     EGLDisplay eDisplay = EGL_NO_DISPLAY;
@@ -293,9 +318,6 @@ int main(int argc, char **argv)
         EGL_NONE
     }, num_config = 0, eFormat = 0;
     EGLConfig eConfig = nullptr;
-
-    // ImGuiIO& io = ImGui::GetIO();
-    // static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     // Demo window and shutdown comfirm
     bool show_demo_window = true;
@@ -326,10 +348,12 @@ int main(int argc, char **argv)
     d_info->detach();
     sleep(2);
 
+    int32_t w_h = dInfo.width + dInfo.height;
+    printf("Pixel: %d\n", w_h);
     native_window = android::ANativeWindowCreator::Create(
         "sdk250",
-        dInfo.width + dInfo.height,
-        dInfo.height + dInfo.width
+        w_h,
+        w_h
     );
 
     ANativeWindow_acquire(native_window);
@@ -392,7 +416,7 @@ int main(int argc, char **argv)
     int fd = open(input_device, O_RDONLY | O_SYNC | O_NONBLOCK);
     float x, y, z;
     assert(fd > 0);
-    ImGuiIO &io = ImGui::GetIO();
+    // ImGuiIO &io = ImGui::GetIO();
     pth = new std::thread {[&]{
         for (; !_shutdown;)
         {
@@ -412,17 +436,17 @@ int main(int argc, char **argv)
                         break;
                 }
                 // printf("x: %f\ty: %f\tz: %d\n", ImVec2(x,y)[0], ImVec2(x,y)[1], dInfo.theta);
-                z < 0 ? io.MouseDown[0] = false : io.MouseDown[0] = true;
+                z < 0 ? ImGui::GetIO().MouseDown[0] = false : ImGui::GetIO().MouseDown[0] = true;
                 switch (dInfo.theta / 90)
                 {
                     case 0:
-                        io.MousePos = ImVec2(x, y);
+                        ImGui::GetIO().MousePos = ImVec2(x, y);
                         continue;
                     case 1:
-                        io.MousePos = ImVec2(y , dInfo.height - x);
+                        ImGui::GetIO().MousePos = ImVec2(y , dInfo.height - x);
                         continue;
                     case 3:
-                        io.MousePos = ImVec2(dInfo.width - y, x);
+                        ImGui::GetIO().MousePos = ImVec2(dInfo.width - y, x);
                     default:
                         break;
                 }
@@ -438,10 +462,7 @@ int main(int argc, char **argv)
     int Count = 0, my_team_id = 0;
     struct Vec3 My_pos;
     float matrix_content[16] {0.0f}, Fov {0.0f}, Camera {0.0f};
-    struct FTransform transform;
-    struct FMatrix C2W_Matrix;
-    struct FMatrix boneMatrix;
-    ImDrawList *drawList = ImGui::GetForegroundDrawList();
+    // ImDrawList *drawList = ImGui::GetForegroundDrawList();
 
     game_data = new std::thread {[&]{
         // for (; !_shutdown;)
@@ -456,33 +477,15 @@ int main(int argc, char **argv)
     for (; !_shutdown; )
     {
         ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplAndroid_NewFrame(dInfo.width + dInfo.height, dInfo.width + dInfo.height);
+        ImGui_ImplAndroid_NewFrame(w_h, w_h);
         ImGui::NewFrame();
 
-        // ImGui::ShowDemoWindow(&show_demo_window);
-        ImGui::Begin("sdk250"); // Create a window called "Hello, world!" and append into it.
+        ImGui::Begin("sdk250");
 
-        ImGui::Text("Version 0.3");               // Display some text (you can use a format strings too)
-        // ImGui::Checkbox("demo window", &show_demo_window);
-
-        check = ImGui::Button("+1__");
-        _1 = ImGui::Button("-1__");
-        if (check)
-        {
-            // libUE4 = driver->getModuleBase("libUE4.so");
-            // value = driver->read<uintptr_t>(libUE4 + offset);
-            offset += 1;
-        }
-        if (_1) offset -=1;
-        ImGui::Text("Base address: %#lX\nValue: %lu\n", libUE4, value);
-        ImGui::Text("Fov: %.2f\tCount: %d\nUWorld: %#lX\tULevel: %#lX\n", Fov, Count, UWorld, ULevel);
-        ImGui::Text("X: %.2f\tY: %.2f\tZ: %.2f\n", My_pos.x, My_pos.y, My_pos.z);
-        ImGui::Text("My term id: %d\n", my_team_id);
-        // drawList = ImGui::GetForegroundDrawList();
         UWorld = driver->read<uintptr_t>(libUE4 + 0xE9985C8);
-        ULevel = driver->read<uintptr_t>(UWorld + 0x90) + 0xA0;
-        Array = driver->read<uintptr_t>(ULevel);
-        Count = driver->read<int>(ULevel + 0x8);
+        ULevel = driver->read<uintptr_t>(UWorld + 0x90);
+        Array = driver->read<uintptr_t>(ULevel + 0xA0);
+        Count = driver->read<int>(ULevel + 0xA8);
 
         if (Count < 1 || Count > 2000)
             goto end;
@@ -512,60 +515,372 @@ int main(int argc, char **argv)
             ) + 0x5F0
         );
 
-        for (int i = 0; i < Count; i++)
+        ImGui::Text("Version 0.3");
+
+        check = ImGui::Button("+1__");
+        _1 = ImGui::Button("-1__");
+        if (check)
+        {
+            // libUE4 = driver->getModuleBase("libUE4.so");
+            // value = driver->read<uintptr_t>(libUE4 + offset);
+            offset += 1;
+        }
+        if (_1) offset -=1;
+        ImGui::Text("Base address: %#lX\nValue: %lu\n", libUE4, value);
+        ImGui::Text("Fov: %.2f\tCount: %d\nUWorld: %#lX\tULevel: %#lX\n", Camera, Count, UWorld, ULevel);
+        ImGui::Text("X: %.2f\tY: %.2f\tZ: %.2f\n", My_pos.x, My_pos.y, My_pos.z);
+        ImGui::Text("My term id: %d\n", my_team_id);
+        // drawList = ImGui::GetForegroundDrawList();
+
+        for (int i = 0, j = 0; i < Count && j < 100; i++)
         {
             Object = driver->read<uintptr_t>(Array + i * sizeof(uintptr_t));
 
-            if (driver->read<float>(Object + 0x2F40) != 479.5f)
-                continue;
-
-            if (Object == 0 || Object <= 0x10000000 || Object % 4 != 0 || Object >= 0x10000000000)
+            if (Object <= 0xFFFF || Object == 0 || Object <= 0x10000000 || Object % 4 != 0 || Object >= 0x10000000000)
                 continue;
 
             uintptr_t object = driver->read<uintptr_t>(Object + 0x268);
 
-            if (object <= 0xffff || object == 0 || object <= 0x10000000 || object % 4 != 0 || object >= 0x10000000000)
+            if (object <= 0xFFFF || object == 0 || object <= 0x10000000 || object % 4 != 0 || object >= 0x10000000000)
                 continue;
-                
-            driver->read(object + 0x1C0, &players[i].Position, sizeof(struct Vec3));
-            if (players[i].Position.x == 0.0f || players[i].Position.y == 0.0f)
+
+            if (driver->read<float>(Object + 0x2F40) != 479.5f)
+                continue;
+
+            driver->read(object + 0x1C0, &players[j].Position.Position, sizeof(struct Vec3));
+            if (players[j].Position.Position.x == 0.0f || players[j].Position.Position.y == 0.0f)
+                continue;
+
+            players[j].TeamID = driver->read<int>(Object + 0xA80);
+            if (players[j].TeamID == my_team_id)
                 continue;
 
             int state = driver->read<int>(Object + 0x1328);
             if (state == 0x100000 || state == 0x100010)
                 continue;
 
-            players[i].TeamID = driver->read<int>(Object + 0xA80);
-            if (players[i].TeamID == my_team_id)
+            players[j].Health = (driver->read<float>(Object + 0xDF8) / driver->read<float>(Object + 0xE00)) * 100;
+            if (players[j].Health > 100 || players[j].Health <= 0)
                 continue;
 
-            players[i].Health = (driver->read<float>(Object + 0xDF8) / driver->read<float>(Object + 0xE00)) * 100;
-            if (players[i].Health > 100)
-                continue;
+            // Camera = matrix_content[3] * players[j].Position.Position.x + matrix_content[7] * players[j].Position.Position.y + matrix_content[11] * players[j].Position.Position.z + matrix_content[15];
+            // float r_x = (dInfo.width / 2) + (matrix_content[0] * players[j].Position.Position.x + matrix_content[4] * players[j].Position.Position.y + matrix_content[8] * players[j].Position.Position.z + matrix_content[12]) / Camera * (dInfo.width / 2);
+            // float r_y = (dInfo.height / 2) - (matrix_content[1] * players[j].Position.Position.x + matrix_content[5] * players[j].Position.Position.y + matrix_content[9] * (players[j].Position.Position.z - 5) + matrix_content[13]) / Camera * (dInfo.height / 2);
+            // float r_w = (dInfo.height / 2) - (matrix_content[1] * players[j].Position.Position.x + matrix_content[5] * players[j].Position.Position.y + matrix_content[9] * (players[j].Position.Position.z + 205) + matrix_content[13]) / Camera * (dInfo.height / 2);
+
+            // float X = r_x - (r_y - r_w) / 4;
+            // float Y = r_y;
+            // float W = (r_y - r_w) / 2;
+
+            // int x = players[i].Position.Position.x - (players[i].Position.Position.y - players[i].Position.Position.z) / 4;
+            // int y = players[i].Position.Position.y;
+            // int w = (players[i].Position.Position.y - players[i].Position.Position.z) / 2;
+            // ImGui::GetForegroundDrawList()->AddRect(ImVec2(X, Y - W), ImVec2(X + W, Y + W), RED, 0, 0, 2.0f);
+            // ImGui::GetForegroundDrawList()->AddRect(ImVec2(x, y - w), ImVec2(x + w, y + w), RED, 0, 0, 2.0f);
 
             Mesh = driver->read<uintptr_t>(Object + 0x5C8);
-            Bone = driver->read<uintptr_t>(Mesh + 0x730);
+            Bone = driver->read<uintptr_t>(Mesh + 0x730) + 0x30;
             if (Mesh < 0xFFFF || Bone < 0xFFFF)
                 continue;
 
-            WorldToScreen(&players[i].Screen_Postion, &Camera, &players[i].Width, players[i].Position, matrix_content, dInfo.width, dInfo.height);
+            int BoneCount = driver->read<uintptr_t>(Mesh + 0x738);
+            int p = (BoneCount == 68) ? 33 : 32;
+            int o = (BoneCount == 68) ? 34 : 33;
+            int a = (BoneCount == 68) ? 13 : 63;
+            int b = (BoneCount == 68) ? 35 : 62;
+            int c = (BoneCount == 68) ? 55 : 52;
+            int d = (BoneCount == 68) ? 59 : 56;
+            int e = (BoneCount == 68) ? 56 : 53;
+            int f = (BoneCount == 68) ? 60 : 57;
+            int g = (BoneCount == 68) ? 57 : 54;
+            int h = (BoneCount == 68) ? 61 : 58;
 
-            driver->read(Mesh + 0x1B0, reinterpret_cast<void *>(&transform), sizeof(struct FTransform));
-            C2W_Matrix = TransformToMatrix(transform);
+            WorldToScreen(&players[j].Position.Screen_Position, &Camera, &players[j].Width, players[j].Position.Position, matrix_content, dInfo.width, dInfo.height);
 
-            driver->read(Bone + 6 * 48, reinterpret_cast<void *>(&transform), sizeof(struct FTransform));
-            boneMatrix = TransformToMatrix(transform);
-            // Players->Head.Pos = MarixToVector(MatrixMulti(boneMatrix, c2wMatrix));
-            // Players->Head.Pos.z += 7; /* 脖子长度 */               
-            players[i].Head = WorldToScreen(MarixToVector(MatrixMulti(boneMatrix, C2W_Matrix)), matrix_content, dInfo.width / 2, dInfo.height / 2);
-            if (players[i].Head.x > 0 && players[i].Head.y > 0 && players[i].Width > 0 && players[i].Head.x < dInfo.width && players[i].Head.y < dInfo.height)
+            struct FMatrix C2W_Matrix = TransformToMatrix(getBone(Mesh + 0x1B0, driver));
+
+            players[j].Head.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + 5 * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].Head.Position.z += 7;
+            players[j].Head.Screen_Position = WorldToScreen(
+                players[j].Head.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            players[j].Chest.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + 4 * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].Chest.Screen_Position = WorldToScreen(
+                players[j].Chest.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            players[j].Pelvis.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + 0 * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].Pelvis.Screen_Position = WorldToScreen(
+                players[j].Pelvis.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            players[j].lSh.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + 11 * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].lSh.Screen_Position = WorldToScreen(
+                players[j].lSh.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            players[j].rSh.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + p * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].rSh.Screen_Position = WorldToScreen(
+                players[j].rSh.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            players[j].lElbow.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + 12 * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].lElbow.Screen_Position = WorldToScreen(
+                players[j].lElbow.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            players[j].rElbow.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + o * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].rElbow.Screen_Position = WorldToScreen(
+                players[j].rElbow.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            players[j].lWrist.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + a * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].lWrist.Screen_Position = WorldToScreen(
+                players[j].lWrist.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            players[j].rWrist.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + b * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].rWrist.Screen_Position = WorldToScreen(
+                players[j].rWrist.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            players[j].lLeg.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + c * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].lLeg.Screen_Position = WorldToScreen(
+                players[j].lLeg.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            players[j].rLeg.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + d * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].rLeg.Screen_Position = WorldToScreen(
+                players[j].rLeg.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            players[j].lKnee.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + e * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].lKnee.Screen_Position = WorldToScreen(
+                players[j].lKnee.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            players[j].rKnee.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + f * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].rKnee.Screen_Position = WorldToScreen(
+                players[j].rKnee.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            players[j].lAnkle.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + g * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].lAnkle.Screen_Position = WorldToScreen(
+                players[j].lAnkle.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            players[j].rAnkle.Position = MarixToVector(
+                MatrixMulti(
+                    TransformToMatrix(getBone(Bone + h * 48, driver)), C2W_Matrix
+                )
+            );
+            players[j].rAnkle.Screen_Position = WorldToScreen(
+                players[j].rAnkle.Position,
+                matrix_content,
+                dInfo.width / 2,
+                dInfo.height / 2
+            );
+
+            if (players[j].Head.Screen_Position.x > 0 &&
+                players[j].Head.Screen_Position.y > 0 &&
+                players[j].Width > 0 &&
+                players[j].Head.Screen_Position.x < dInfo.width &&
+                players[j].Head.Screen_Position.y < dInfo.height)
+            {
+                // ImGui::GetForegroundDrawList()->AddCircle(
+                //     players[j].Head.Screen_Position,
+                //     160 / sqrt(pow(players[j].Head.Position.x - My_pos.x, 2) + pow(players[j].Head.Position.y - My_pos.y, 2) + pow(players[j].Head.Position.z - My_pos.z, 2)),
+                //     RED,
+                //     6,
+                //     4
+                // );
                 ImGui::GetForegroundDrawList()->AddLine(
                     ImVec2((float) dInfo.width / 2, 100),
-                    ImVec2(players[i].Head.x, players[i].Head.y),
-                    ImGui::ColorConvertFloat4ToU32(ImVec4(255.0f, 0.0f, 0.0f, 255.0f)),
-                    1
+                    players[j].Head.Screen_Position,
+                    RED,
+                    line_width
                 );
-            // ImGui::Text("x: %f\ty: %f\tz: %f\tHP: %f\n", players[i].Position.x, players[i].Position.y, players[i].Position.z, players[i].Health);
+                ImGui::GetForegroundDrawList()->AddLine(
+                    players[j].Chest.Screen_Position,
+                    players[j].Pelvis.Screen_Position,
+                    GREEN,
+                    line_width
+                );
+                ImGui::GetForegroundDrawList()->AddLine(
+                    players[j].Chest.Screen_Position,
+                    players[j].lSh.Screen_Position,
+                    GREEN,
+                    line_width
+                );
+                ImGui::GetForegroundDrawList()->AddLine(
+                    players[j].lSh.Screen_Position,
+                    players[j].lElbow.Screen_Position,
+                    GREEN,
+                    line_width
+                );
+                ImGui::GetForegroundDrawList()->AddLine(
+                    players[j].lElbow.Screen_Position,
+                    players[j].lWrist.Screen_Position,
+                    GREEN,
+                    line_width
+                );
+
+                ImGui::GetForegroundDrawList()->AddLine(
+                    players[j].Chest.Screen_Position,
+                    players[j].rSh.Screen_Position,
+                    GREEN,
+                    line_width
+                );
+                ImGui::GetForegroundDrawList()->AddLine(
+                    players[j].rSh.Screen_Position,
+                    players[j].rElbow.Screen_Position,
+                    GREEN,
+                    line_width
+                );
+                ImGui::GetForegroundDrawList()->AddLine(
+                    players[j].rElbow.Screen_Position,
+                    players[j].rWrist.Screen_Position,
+                    GREEN,
+                    line_width
+                );
+                ImGui::GetForegroundDrawList()->AddLine(
+                    players[j].Pelvis.Screen_Position,
+                    players[j].lLeg.Screen_Position,
+                    GREEN,
+                    line_width
+                );
+                ImGui::GetForegroundDrawList()->AddLine(
+                    players[j].lLeg.Screen_Position,
+                    players[j].lKnee.Screen_Position,
+                    GREEN,
+                    line_width
+                );
+                ImGui::GetForegroundDrawList()->AddLine(
+                    players[j].lKnee.Screen_Position,
+                    players[j].lAnkle.Screen_Position,
+                    GREEN,
+                    line_width
+                );
+                ImGui::GetForegroundDrawList()->AddLine(
+                    players[j].Pelvis.Screen_Position,
+                    players[j].rLeg.Screen_Position,
+                    GREEN,
+                    line_width
+                );
+                ImGui::GetForegroundDrawList()->AddLine(
+                    players[j].rLeg.Screen_Position,
+                    players[j].rKnee.Screen_Position,
+                    GREEN,
+                    line_width
+                );
+                ImGui::GetForegroundDrawList()->AddLine(
+                    players[j].rKnee.Screen_Position,
+                    players[j].rAnkle.Screen_Position,
+                    GREEN,
+                    line_width
+                );
+            }
+            ImGui::Text("x: %.2f\ty: %.2f\tz: %.2f\tHP: %.2f\n", players[j].Position.Position.x, players[j].Position.Position.y, players[j].Position.Position.z, players[j].Health);
+            j++;
         }
 
 end:
@@ -573,7 +888,7 @@ end:
         ImGui::End();
 
         ImGui::Render();
-        glViewport(0, 0, (int) dInfo.width + dInfo.height, (int) dInfo.width + dInfo.height);
+        glViewport(0, 0, (int) w_h, (int) w_h);
         glClearColor(0,0,0,0/*clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w*/);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -581,10 +896,12 @@ end:
     }
 
     puts("RELEASE WINDOW!");
+    sleep(1);
     delete pth;
     delete d_info;
     delete driver;
     delete game_data;
+    sleep(2);
     close(fd);
     ImGui_ImplAndroid_Shutdown();
     ImGui_ImplOpenGL3_Shutdown();
@@ -663,7 +980,7 @@ const char* exec(const char* command)
     return (const char*) result;
 }
 
-struct FMatrix TransformToMatrix(const FTransform &transform)
+struct FMatrix TransformToMatrix(const FTransform transform)
 {
     FMatrix matrix;
     matrix.M[3][0] = transform.Translation.x;
@@ -697,12 +1014,12 @@ struct FMatrix TransformToMatrix(const FTransform &transform)
     return matrix;
 }
 
-inline Vec3 MarixToVector(const FMatrix &matrix)
+inline Vec3 MarixToVector(const FMatrix matrix)
 {
     return Vec3(matrix.M[3][0], matrix.M[3][1], matrix.M[3][2]);
 }
 
-FMatrix MatrixMulti(const FMatrix &m1, const FMatrix &m2)
+FMatrix MatrixMulti(const FMatrix m1, const FMatrix m2)
 {
     FMatrix matrix = FMatrix();
     for (int i = 0; i < 4; i++)
@@ -718,7 +1035,7 @@ FMatrix MatrixMulti(const FMatrix &m1, const FMatrix &m2)
     return matrix;
 }
 
-void WorldToScreen(Vec2 *bscreen, float *camea, float *w, const Vec3 &obj, const float *matrix, int &Width, int &Height)
+void WorldToScreen(Vec2 *bscreen, float *camea, float *w, const Vec3 obj, const float *matrix, int Width, int Height)
 {
     float camear = matrix[3] * obj.x + matrix[7] * obj.y + matrix[11] * obj.z + matrix[15];
     *camea = camear;
@@ -729,7 +1046,7 @@ void WorldToScreen(Vec2 *bscreen, float *camea, float *w, const Vec3 &obj, const
     *w = (bscreen->y - bscreenZ) / 2;
 }
 
-Vec2 WorldToScreen(const Vec3 &obj, const float *matrix, const int &Width, const int &Height)
+Vec2 WorldToScreen(const Vec3 obj, const float *matrix, const int Width, const int Height)
 {
     Vec2 bscreen;
     float camear = matrix[3] * obj.x + matrix[7] * obj.y + matrix[11] * obj.z + matrix[15];
@@ -742,5 +1059,12 @@ void signal_terminate(int sign)
 {
     _shutdown = true;
     exit(EXIT_SUCCESS);
+}
+
+struct FTransform getBone(uintptr_t addr, c_driver *driver)
+{
+    FTransform transform;
+    driver->read(addr, reinterpret_cast<void*>(&transform), 4 * 11);
+    return transform;
 }
 
