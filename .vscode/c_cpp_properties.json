@@ -3,11 +3,13 @@
         {
             "name": "Linux",
             "includePath": [
-                // "${workspaceFolder}/**",
+                "${workspaceFolder}/jni/include",
+                "${workspaceFolder}/jni/include/imgui",
+                "${workspaceFolder}/jni/include/Vulkan",
                 "/var/android-ndk-r26d/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include"
             ],
             "defines": [],
-            "compilerPath": "/var/android-ndk-r26d/ndk-build",
+            "compilerPath": "/usr/bin/clang",
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "linux-clang-x64"

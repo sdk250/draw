@@ -3,7 +3,8 @@
 // Output:
 // lrwxrwxrwx 1 root root 0 2024-01-01 14:00 /proc/7665/exe -> /data/ktbqmo (deleted)
 
-#define NEKO_H
+#ifndef __NEKO_H__
+#define __NEKO_H__
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
@@ -42,7 +43,7 @@ class c_driver
         // int has_digit = 0;
         int fd;
         pid_t pid;
-        char *dev_path {nullptr};
+        const char *dev_path {nullptr};
 
         typedef struct _COPY_MEMORY {
             pid_t pid;
@@ -69,7 +70,7 @@ class c_driver
             struct utsname unameData;
             if (uname(&unameData) == 0)
             {
-                return unameData.release;
+                return strdup(unameData.release);
                 // sysname：操作系统名称
                 // nodename：计算机网络名称
                 // release：操作系统发行版本
@@ -117,8 +118,10 @@ class c_driver
             fd = open(dev_path, O_RDWR);
             if (fd > 0)
             {
-                printf("Kernel version: %s\n", kernel());
+                char *version = kernel();
+                printf("Kernel version: %s\n", version);
                 unlink(dev_path);
+                free(version);
                 return 0;
             } else
                 printf("Can not find the driver!\n");
@@ -127,7 +130,7 @@ class c_driver
         }
 
     public:
-        c_driver(char *_dev_path, pid_t _pid) : pid(_pid), dev_path(_dev_path)
+        c_driver(const char *_dev_path, pid_t _pid) : pid(_pid), dev_path(_dev_path)
         {
             open_driver();
             if (fd <= 0 or pid <= 10) {
@@ -202,3 +205,4 @@ class c_driver
         }
 };
 
+#endif // NEKO_H

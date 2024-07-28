@@ -1,32 +1,3 @@
 {
-    "files.associations": {
-        "*.cjson": "jsonc",
-        "*.wxss": "css",
-        "*.wxs": "javascript",
-        "iostream": "cpp",
-        "ostream": "cpp",
-        "iosfwd": "cpp",
-        "compare": "cpp",
-        "cstdint": "cpp",
-        "*.tcc": "cpp",
-        "istream": "cpp",
-        "locale": "cpp",
-        "string": "cpp",
-        "stdexcept": "cpp",
-        "array": "cpp",
-        "bitset": "cpp",
-        "string_view": "cpp",
-        "format": "cpp",
-        "initializer_list": "cpp",
-        "span": "cpp",
-        "__hash_table": "cpp",
-        "__split_buffer": "cpp",
-        "deque": "cpp",
-        "queue": "cpp",
-        "stack": "cpp",
-        "unordered_map": "cpp",
-        "vector": "cpp",
-        "thread": "cpp"
-    },
     "C_Cpp.errorSquiggles": "disabled"
 }
