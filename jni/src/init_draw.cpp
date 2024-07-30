@@ -10,13 +10,14 @@ Init_draw::Init_draw(ANativeWindow *_window, uint32_t width, uint32_t height): w
 
     ImGui_ImplAndroid_Init(window);
     VulkanGraphics::Setup();
-    ImGui::GetStyle().ScaleAllSizes(3.0f);
+    // ImGui::GetStyle().ScaleAllSizes(3.0f);
+    ImGuiIO &io = ImGui::GetIO();
+    io.Fonts->AddFontFromFileTTF("/storage/emulated/0/item/Fonts/Heiti.ttf", 36.0f);
 }
 
 Init_draw::~Init_draw(void)
 {
     VulkanGraphics::PrepareShutdown();
-    ImGui_ImplVulkan_Shutdown();
     ImGui_ImplAndroid_Shutdown();
     ImGui::DestroyContext();
 

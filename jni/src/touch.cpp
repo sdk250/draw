@@ -62,7 +62,7 @@ void Touch::start(ImGuiIO &io)
                         break;
                 }
                 // printf("x: %f\ty: %f\tz: %d\n", ImVec2(x,y)[0], ImVec2(x,y)[1], dInfo.theta);
-                z < 0 ? ImGui::GetIO().MouseDown[0] = false : ImGui::GetIO().MouseDown[0] = true;
+                ImGui::GetIO().MouseDown[0] = z < 0 ? false : true;
                 switch (display_info.theta / 90)
                 {
                     case 0:

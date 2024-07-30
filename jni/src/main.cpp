@@ -17,7 +17,7 @@ int main(int argc, char **argv)
     Touch *touch {nullptr};
     std::thread *get_display_info {nullptr};
     // c_driver *driver = new c_driver((argv[1]), get_pid( /*"com.ztgame.bob.mi"*/)); // com.tencent.tmgp.pubgmhd
-    ESP *esp = new ESP(argv[1], "com.tencent.tmgp.pubgmhd");
+    // ESP *esp = new ESP(argv[1], "com.tencent.tmgp.pubgmhd");
 
     display_info = android::ANativeWindowCreator::GetDisplayInfo();
     get_display_info = new std::thread {[&] {
@@ -29,15 +29,23 @@ int main(int argc, char **argv)
     }};
     get_display_info->detach();
 
-    CANVAS_SIZE = display_info.width > display_info.height ? display_info.width : display_info.height;
+    CANVAS_SIZE = display_info.width > display_info.height ? \
+        display_info.width : display_info.height;
     window = android::ANativeWindowCreator::Create("sdk250", CANVAS_SIZE, CANVAS_SIZE);
-    printf("Native window address: %p\n%dx%d\tCanvas size: %d\n", window, display_info.width, display_info.height, CANVAS_SIZE);
+    printf("Native window address: %p\n"
+        "%dx%d\tCanvas size: %d\n",
+        window,
+        display_info.width,
+        display_info.height,
+        CANVAS_SIZE
+    );
     UI = new Init_draw(window, CANVAS_SIZE, CANVAS_SIZE);
 
     touch = new Touch;
     touch->start(ImGui::GetIO());
 
-    esp->start();
+    // esp->start();
+    int fps = 0;
     for (; !_shutdown;)
     {
         if (display_info.theta / 90 != 0)
@@ -46,13 +54,18 @@ int main(int argc, char **argv)
             UI->PrepareFrame(false);
         ImGui_ImplAndroid_NewFrame(display_info.width, display_info.height);
         ImGui::NewFrame();
+        ImGui::SetWindowSize(ImVec2(300, 600), ImGuiCond_FirstUseEver);
 
         ImGui::Begin("sdk250");
 
-        ImGui::Text("Base address: %#lX\n", esp->libUE4);
-        ImGui::Text("Fov: %.2f\tCount: %d\nUWorld: %#lX\tULevel: %#lX\n", esp->Camera, esp->Count, esp->UWorld, esp->ULevel);
-        ImGui::Text("X: %.2f\tY: %.2f\tZ: %.2f\n", esp->My_pos.x, esp->My_pos.y, esp->My_pos.z);
-        ImGui::Text("My term id: %d\n", esp->my_team_id);
+        // ImGui::Text("Base address: %#lX\n", esp->libUE4);
+        // ImGui::Text("Fov: %.2f\tCount: %d\nUWorld: %#lX\tULevel: %#lX\n", esp->Camera, esp->Count, esp->UWorld, esp->ULevel);
+        // ImGui::Text("X: %.2f\tY: %.2f\tZ: %.2f\n", esp->My_pos.x, esp->My_pos.y, esp->My_pos.z);
+        // ImGui::Text("My term id: %d\n", esp->my_team_id);
+        if (ImGui::RadioButton("120 FPS", fps == 0)) fps = 0;
+        if (ImGui::RadioButton("60 FPS", fps == 16)) fps = 16;
+
+        ImGui::Text("%.2f FPS", ImGui::GetIO().Framerate);
 
         _shutdown = ImGui::Button("SHUTDOWN");
 
@@ -60,11 +73,14 @@ int main(int argc, char **argv)
 
         ImGui::Render();
         UI->Render(ImGui::GetDrawData());
+        // usleep(10000);
+        std::this_thread::sleep_for(std::chrono::milliseconds(fps));
     }
-    
+
     delete UI;
     delete touch;
     delete get_display_info;
-    delete esp;
+    // delete esp;
+    puts("Delete end.");
     return 0;
 }

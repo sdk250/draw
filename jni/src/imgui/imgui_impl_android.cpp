@@ -286,9 +286,8 @@ void ImGui_ImplAndroid_NewFrame(int32_t window_width, int32_t window_height)
     ImGuiIO& io = ImGui::GetIO();
 
     // Setup display size (every frame to accommodate for window resizing)
-    // int32_t window_width;
-    // int32_t window_height;
-    // window_width = window_height = ANativeWindow_getWidth(g_Window) + ANativeWindow_getHeight(g_Window);
+    // int32_t window_width = ANativeWindow_getWidth(g_Window);
+    // int32_t window_height = ANativeWindow_getHeight(g_Window);
     int display_width = window_width;
     int display_height = window_height;
 
