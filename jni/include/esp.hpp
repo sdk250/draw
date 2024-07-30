@@ -254,6 +254,8 @@ struct FTransform
     Vec3 Scale3D;
 };
 
+extern bool _shutdown;
+
 class ESP: private c_driver
 {
     public:
@@ -278,7 +280,5 @@ class ESP: private c_driver
         float matrix_content[16] {0.0f}, Fov {0.0f}, Camera {0.0f};
     private:
 };
-
-extern bool _shutdown;
 
 #endif // ESP_H

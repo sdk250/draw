@@ -13,7 +13,6 @@
 #include <cstdlib>
 #include <thread>
 
-// #include "global_value.hpp"
 #include "imgui.h"
 #include "ANativeWindowCreator.hpp"
 

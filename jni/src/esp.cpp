@@ -7,7 +7,7 @@ ESP::ESP(const char *driver_path, const char *name): c_driver(driver_path, this-
 
 ESP::~ESP(void)
 {
-    delete thread;
+    if (thread) delete thread;
     puts("Release ESP done!");
 }
 

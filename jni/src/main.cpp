@@ -6,16 +6,18 @@
 #include "esp.hpp"
 
 struct android::ANativeWindowCreator::DisplayInfo display_info {};
-bool _shutdown = false;
-uint32_t CANVAS_SIZE = 0;
+bool _shutdown {false};
+uint32_t CANVAS_SIZE {0};
 
 int main(int argc, char **argv)
 {
     puts(__TIME__ "\t" __DATE__);
+
     Init_draw *UI {nullptr};
     ANativeWindow *window {nullptr};
     Touch *touch {nullptr};
     std::thread *get_display_info {nullptr};
+    int fps {16};
     // c_driver *driver = new c_driver((argv[1]), get_pid( /*"com.ztgame.bob.mi"*/)); // com.tencent.tmgp.pubgmhd
     // ESP *esp = new ESP(argv[1], "com.tencent.tmgp.pubgmhd");
 
@@ -23,8 +25,8 @@ int main(int argc, char **argv)
     get_display_info = new std::thread {[&] {
         for (; !_shutdown;)
         {
-            display_info = android::ANativeWindowCreator::GetDisplayInfo();
             std::this_thread::sleep_for(std::chrono::seconds(2));
+            display_info = android::ANativeWindowCreator::GetDisplayInfo();
         }
     }};
     get_display_info->detach();
@@ -45,12 +47,13 @@ int main(int argc, char **argv)
     touch->start(ImGui::GetIO());
 
     // esp->start();
-    int fps = 0;
-    for (; !_shutdown;)
+    for (int state = 0; !_shutdown;)
     {
-        if (display_info.theta / 90 != 0)
+        if (state != display_info.theta)
+        {
             UI->PrepareFrame(true);
-        else
+            state = display_info.theta;
+        } else
             UI->PrepareFrame(false);
         ImGui_ImplAndroid_NewFrame(display_info.width, display_info.height);
         ImGui::NewFrame();

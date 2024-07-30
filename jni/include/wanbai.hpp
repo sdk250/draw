@@ -141,7 +141,6 @@ class c_driver
 
         ~c_driver()
         {
-            delete [] dev_path;
             if (fd > 0)
                 close(fd);
         }
