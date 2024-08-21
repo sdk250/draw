@@ -48,6 +48,40 @@ void ESP::start(void)
                     ) + 0x5D0
                 ) + 0x5F0
             );
+
+            for (int i = 0, j = 0; i < Count && j < 100; i++)
+            {
+                Object = c_driver::read<uintptr_t>(Array + i * sizeof(uintptr_t));
+
+                if (Object <= 0xFFFF || Object == 0 || Object <= 0x10000000 || Object % 4 != 0 || Object >= 0x10000000000)
+                    continue;
+
+                uintptr_t object = c_driver::read<uintptr_t>(Object + 0x268);
+
+                if (object <= 0xFFFF || object == 0 || object <= 0x10000000 || object % 4 != 0 || object >= 0x10000000000)
+                    continue;
+
+                if (c_driver::read<float>(Object + 0x2F40) != 479.5f)
+                    continue;
+
+                c_driver::read(object + 0x1C0, &players[j].Position.Position, sizeof(struct Vec3));
+                if (players[j].Position.Position.x == 0.0f || players[j].Position.Position.y == 0.0f)
+                    continue;
+
+                players[j].TeamID = c_driver::read<int>(Object + 0xA80);
+                if (players[j].TeamID == my_team_id)
+                    continue;
+
+                int state = c_driver::read<int>(Object + 0x1328);
+                if (state == 0x100000 || state == 0x100010)
+                    continue;
+
+                players[j].Health = (c_driver::read<float>(Object + 0xDF8) / c_driver::read<float>(Object + 0xE00)) * 100;
+                if (players[j].Health > 100 || players[j].Health <= 0)
+                    continue;
+
+                j++;
+            }
         }
     }};
     thread->detach();

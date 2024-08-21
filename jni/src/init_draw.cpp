@@ -12,7 +12,12 @@ Init_draw::Init_draw(ANativeWindow *_window, uint32_t width, uint32_t height): w
     VulkanGraphics::Setup();
     // ImGui::GetStyle().ScaleAllSizes(3.0f);
     ImGuiIO &io = ImGui::GetIO();
-    io.Fonts->AddFontFromFileTTF("/storage/emulated/0/item/Fonts/Heiti.ttf", 36.0f);
+    io.Fonts->AddFontFromFileTTF(
+        "/data/media/0/item/Fonts/Heiti.ttf",
+        36.0f,
+        nullptr,
+        io.Fonts->GetGlyphRangesChineseSimplifiedCommon()
+    );
 }
 
 Init_draw::~Init_draw(void)

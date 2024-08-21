@@ -6,7 +6,8 @@
 #include "wanbai.hpp"
 #include "imgui.h"
 
-struct Vec2 {
+struct Vec2
+{
     float x;
     float y;
     Vec2()
@@ -256,7 +257,7 @@ struct FTransform
 
 extern bool _shutdown;
 
-class ESP: private c_driver
+class ESP: public c_driver
 {
     public:
         ESP(const char *driver_path, const char *name);
@@ -278,6 +279,7 @@ class ESP: private c_driver
         int Count {0}, my_team_id {0};
         struct Vec3 My_pos;
         float matrix_content[16] {0.0f}, Fov {0.0f}, Camera {0.0f};
+        struct Player players[100];
     private:
 };
 
